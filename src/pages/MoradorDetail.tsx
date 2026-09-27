@@ -19,6 +19,7 @@ interface Morador {
   phone: string | null;
   cep: string | null;
   address: string | null;
+  observacao: string | null;
 }
 
 export function MoradorDetail() {
@@ -46,6 +47,7 @@ export function MoradorDetail() {
   const [phone, setPhone] = useState("");
   const [cep, setCep] = useState("");
   const [address, setAddress] = useState("");
+  const [observacao, setObservacao] = useState("");
 
   useEffect(() => {
     // Clear the navigation state so refreshing the page doesn't re-show the toast.
@@ -76,6 +78,7 @@ export function MoradorDetail() {
         setPhone(m.phone ?? "");
         setCep(m.cep ?? "");
         setAddress(m.address ?? "");
+        setObservacao(m.observacao ?? "");
       }
       setLoading(false);
     })();
@@ -131,6 +134,7 @@ export function MoradorDetail() {
         phone: phone.trim() || null,
         cep: cep.trim() || null,
         address: address.trim() || null,
+        observacao: observacao.trim() || null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", id);
@@ -215,6 +219,14 @@ export function MoradorDetail() {
             </Field>
             <Field label="Endereço" className="sm:col-span-2">
               <input value={address} onChange={(e) => setAddress(e.target.value)} className="input" />
+            </Field>
+            <Field label="Observação" className="sm:col-span-2">
+              <textarea
+                value={observacao}
+                onChange={(e) => setObservacao(e.target.value)}
+                rows={3}
+                className="input"
+              />
             </Field>
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
