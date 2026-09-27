@@ -29,6 +29,9 @@ export function Cadastrar() {
   const [cpf, setCpf] = useState("");
   const [name, setName] = useState("");
   const [fiscalResponsavel, setFiscalResponsavel] = useState("");
+  const [birthDate, setBirthDate] = useState("");
+  const [voterZone, setVoterZone] = useState("");
+  const [voterSection, setVoterSection] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [cep, setCep] = useState("");
@@ -112,6 +115,9 @@ export function Cadastrar() {
         cpf: cleanedCpf,
         name: name.trim(),
         fiscal_responsavel: fiscalResponsavel.trim(),
+        birth_date: birthDate || null,
+        voter_zone: voterZone.trim() || null,
+        voter_section: voterSection.trim() || null,
         email: email.trim() || null,
         phone: phone.trim() || null,
         cep: cep.trim() || null,
@@ -125,7 +131,7 @@ export function Cadastrar() {
       setError(dbError.message);
       return;
     }
-    navigate(`/moradores/${data.id}`);
+    navigate(`/moradores/${data.id}`, { state: { justCreated: true } });
   };
 
   return (
@@ -195,12 +201,30 @@ export function Cadastrar() {
                   className="input"
                 />
               </Field>
+              <Field label="Data de nascimento">
+                <input
+                  type="date"
+                  value={birthDate}
+                  onChange={(e) => setBirthDate(e.target.value)}
+                  className="input"
+                />
+              </Field>
               <Field label="CPF (opcional)">
                 <input
                   value={cpf}
                   onChange={(e) => setCpf(formatCpf(e.target.value.replace(/\D/g, "").slice(0, 11)))}
                   placeholder="000.000.000-00"
                   maxLength={14}
+                  className="input"
+                />
+              </Field>
+              <Field label="Zona">
+                <input value={voterZone} onChange={(e) => setVoterZone(e.target.value)} className="input" />
+              </Field>
+              <Field label="Seção">
+                <input
+                  value={voterSection}
+                  onChange={(e) => setVoterSection(e.target.value)}
                   className="input"
                 />
               </Field>

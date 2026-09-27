@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { cleanCpf, formatCpf, isValidCpf } from "../lib/cpf";
 import { cleanTituloEleitor, formatTituloEleitor, isValidTituloEleitor } from "../lib/titulo-eleitor";
 import { cleanCep, formatCep, formatCepAddress, lookupCep } from "../lib/cep";
+import { Toast } from "../components/Toast";
 
 interface Morador {
   id: string;
@@ -11,6 +12,9 @@ interface Morador {
   cpf: string | null;
   name: string;
   fiscal_responsavel: string;
+  birth_date: string | null;
+  voter_zone: string | null;
+  voter_section: string | null;
   email: string | null;
   phone: string | null;
   cep: string | null;
@@ -20,21 +24,36 @@ interface Morador {
 export function MoradorDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [morador, setMorador] = useState<Morador | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isLookingUpCep, setIsLookingUpCep] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(
+    (location.state as { justCreated?: boolean } | null)?.justCreated ? "Morador cadastrado!" : null,
+  );
 
   const [voterTitle, setVoterTitle] = useState("");
   const [cpf, setCpf] = useState("");
   const [name, setName] = useState("");
   const [fiscalResponsavel, setFiscalResponsavel] = useState("");
+  const [birthDate, setBirthDate] = useState("");
+  const [voterZone, setVoterZone] = useState("");
+  const [voterSection, setVoterSection] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [cep, setCep] = useState("");
   const [address, setAddress] = useState("");
+
+  useEffect(() => {
+    // Clear the navigation state so refreshing the page doesn't re-show the toast.
+    if (location.state) {
+      window.history.replaceState({}, "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -50,6 +69,9 @@ export function MoradorDetail() {
         setCpf(m.cpf ? formatCpf(m.cpf) : "");
         setName(m.name);
         setFiscalResponsavel(m.fiscal_responsavel);
+        setBirthDate(m.birth_date ?? "");
+        setVoterZone(m.voter_zone ?? "");
+        setVoterSection(m.voter_section ?? "");
         setEmail(m.email ?? "");
         setPhone(m.phone ?? "");
         setCep(m.cep ?? "");
@@ -102,6 +124,9 @@ export function MoradorDetail() {
         cpf: cleanedCpf,
         name: name.trim(),
         fiscal_responsavel: fiscalResponsavel.trim(),
+        birth_date: birthDate || null,
+        voter_zone: voterZone.trim() || null,
+        voter_section: voterSection.trim() || null,
         email: email.trim() || null,
         phone: phone.trim() || null,
         cep: cep.trim() || null,
@@ -112,7 +137,7 @@ export function MoradorDetail() {
     setIsSaving(false);
 
     if (dbError) setError(dbError.message);
-    else setError(null);
+    else setToastMessage("Alterações salvas!");
   };
 
   if (loading) return <p className="text-sm text-ink/50">Carregando...</p>;
@@ -120,6 +145,7 @@ export function MoradorDetail() {
 
   return (
     <div className="space-y-4">
+      {toastMessage && <Toast message={toastMessage} onDone={() => setToastMessage(null)} />}
       <button onClick={() => navigate("/moradores")} className="text-sm text-teal hover:underline">
         ← Voltar para a lista
       </button>
@@ -151,6 +177,24 @@ export function MoradorDetail() {
                 value={cpf}
                 onChange={(e) => setCpf(formatCpf(e.target.value.replace(/\D/g, "").slice(0, 11)))}
                 maxLength={14}
+                className="input"
+              />
+            </Field>
+            <Field label="Data de nascimento">
+              <input
+                type="date"
+                value={birthDate}
+                onChange={(e) => setBirthDate(e.target.value)}
+                className="input"
+              />
+            </Field>
+            <Field label="Zona">
+              <input value={voterZone} onChange={(e) => setVoterZone(e.target.value)} className="input" />
+            </Field>
+            <Field label="Seção">
+              <input
+                value={voterSection}
+                onChange={(e) => setVoterSection(e.target.value)}
                 className="input"
               />
             </Field>
