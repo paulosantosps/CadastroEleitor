@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { useAuth } from "../lib/auth";
 import { cleanTituloEleitor, formatTituloEleitor, isValidTituloEleitor } from "../lib/titulo-eleitor";
 import { cleanCpf, formatCpf, isValidCpf } from "../lib/cpf";
 import { cleanCep, formatCep, formatCepAddress, lookupCep } from "../lib/cep";
@@ -19,6 +20,7 @@ interface Morador {
 
 export function Cadastrar() {
   const navigate = useNavigate();
+  const { session } = useAuth();
 
   const [voterTitle, setVoterTitle] = useState("");
   const [isSearching, setIsSearching] = useState(false);
@@ -124,6 +126,8 @@ export function Cadastrar() {
         cep: cep.trim() || null,
         address: address.trim() || null,
         observacao: observacao.trim() || null,
+        created_by: session?.user.id ?? null,
+        created_by_email: session?.user.email ?? null,
       })
       .select()
       .single();
@@ -133,6 +137,16 @@ export function Cadastrar() {
       setError(dbError.message);
       return;
     }
+
+    await supabase.from("alteracoes_log").insert({
+      morador_id: data.id,
+      campo: "Cadastro",
+      valor_antigo: null,
+      valor_novo: "Cadastro criado",
+      alterado_por: session?.user.id ?? null,
+      alterado_por_email: session?.user.email ?? null,
+    });
+
     navigate(`/moradores/${data.id}`, { state: { justCreated: true } });
   };
 

@@ -43,6 +43,71 @@ function formatBirthDate(value: string | null): string {
   return `${d}/${m}/${y}`;
 }
 
+function csvEscape(value: string | null | undefined): string {
+  const s = value ?? "";
+  return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+async function downloadMoradoresCsv() {
+  const { data, error } = await supabase
+    .from("moradores")
+    .select("*")
+    .order("name", { ascending: true });
+  if (error || !data) {
+    alert("Erro ao gerar a planilha: " + (error?.message ?? "sem dados"));
+    return;
+  }
+
+  const headers = [
+    "Nome",
+    "Título de Eleitor",
+    "CPF",
+    "Fiscal/Responsável",
+    "Data de nascimento",
+    "Zona",
+    "Seção",
+    "Telefone",
+    "E-mail",
+    "CEP",
+    "Endereço",
+    "Observação",
+    "Cadastrado por",
+    "Data do cadastro",
+  ];
+
+  const lines = data.map((r) =>
+    [
+      r.name,
+      formatTituloEleitor(r.voter_title),
+      r.cpf ? formatCpf(r.cpf) : "",
+      r.fiscal_responsavel,
+      formatBirthDate(r.birth_date),
+      r.voter_zone,
+      r.voter_section,
+      r.phone,
+      r.email,
+      r.cep,
+      r.address,
+      r.observacao,
+      r.created_by_email,
+      new Date(r.created_at).toLocaleString("pt-BR"),
+    ]
+      .map(csvEscape)
+      .join(";"),
+  );
+
+  // BOM (\uFEFF) makes Excel open accented characters correctly; ";" is the
+  // separator Excel expects in pt-BR locale.
+  const csv = "\uFEFF" + [headers.join(";"), ...lines].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `moradores-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function Moradores() {
   const [rows, setRows] = useState<MoradorRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -109,6 +174,12 @@ export function Moradores() {
             Mostrando {filtered.length} de {rows.length}
           </p>
         )}
+        <button
+          onClick={downloadMoradoresCsv}
+          className="rounded-md bg-teal px-4 py-2 text-sm font-medium text-white hover:bg-teal/90"
+        >
+          Baixar planilha (CSV)
+        </button>
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}

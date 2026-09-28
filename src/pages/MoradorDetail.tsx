@@ -5,6 +5,7 @@ import { cleanCpf, formatCpf, isValidCpf } from "../lib/cpf";
 import { cleanTituloEleitor, formatTituloEleitor, isValidTituloEleitor } from "../lib/titulo-eleitor";
 import { cleanCep, formatCep, formatCepAddress, lookupCep } from "../lib/cep";
 import { Toast } from "../components/Toast";
+import { useAuth } from "../lib/auth";
 
 interface Morador {
   id: string;
@@ -20,14 +21,19 @@ interface Morador {
   cep: string | null;
   address: string | null;
   observacao: string | null;
+  created_by_email: string | null;
 }
 
 export function MoradorDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const { session } = useAuth();
 
   const [morador, setMorador] = useState<Morador | null>(null);
+  const [history, setHistory] = useState<
+    { id: string; campo: string; valor_antigo: string | null; valor_novo: string | null; alterado_por_email: string | null; created_at: string }[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -57,6 +63,15 @@ export function MoradorDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const loadHistory = async () => {
+    const { data } = await supabase
+      .from("alteracoes_log")
+      .select("id, campo, valor_antigo, valor_novo, alterado_por_email, created_at")
+      .eq("morador_id", id)
+      .order("created_at", { ascending: false });
+    if (data) setHistory(data);
+  };
+
   useEffect(() => {
     (async () => {
       const { data, error } = await supabase.from("moradores").select("*").eq("id", id).maybeSingle();
@@ -82,6 +97,8 @@ export function MoradorDetail() {
       }
       setLoading(false);
     })();
+    loadHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -99,6 +116,7 @@ export function MoradorDetail() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    if (!morador) return;
 
     const cleanedTitle = cleanTituloEleitor(voterTitle);
     if (!isValidTituloEleitor(cleanedTitle)) {
@@ -119,29 +137,67 @@ export function MoradorDetail() {
       return;
     }
 
+    const newValues: Record<string, string | null> = {
+      voter_title: cleanedTitle,
+      cpf: cleanedCpf,
+      name: name.trim(),
+      fiscal_responsavel: fiscalResponsavel.trim(),
+      birth_date: birthDate || null,
+      voter_zone: voterZone.trim() || null,
+      voter_section: voterSection.trim() || null,
+      email: email.trim() || null,
+      phone: phone.trim() || null,
+      cep: cep.trim() || null,
+      address: address.trim() || null,
+      observacao: observacao.trim() || null,
+    };
+
+    const fieldLabels: Record<string, string> = {
+      voter_title: "Título de Eleitor",
+      cpf: "CPF",
+      name: "Nome",
+      fiscal_responsavel: "Fiscal/Responsável",
+      birth_date: "Data de nascimento",
+      voter_zone: "Zona",
+      voter_section: "Seção",
+      email: "E-mail",
+      phone: "Telefone",
+      cep: "CEP",
+      address: "Endereço",
+      observacao: "Observação",
+    };
+
+    // Compara com os valores originalmente carregados para saber o que
+    // realmente mudou — só esses campos entram no histórico.
+    const changes = Object.entries(newValues)
+      .filter(([field, value]) => (morador[field as keyof Morador] ?? null) !== value)
+      .map(([field, value]) => ({
+        morador_id: id,
+        campo: fieldLabels[field] ?? field,
+        valor_antigo: (morador[field as keyof Morador] as string | null) ?? null,
+        valor_novo: value,
+        alterado_por: session?.user.id ?? null,
+        alterado_por_email: session?.user.email ?? null,
+      }));
+
     setIsSaving(true);
     const { error: dbError } = await supabase
       .from("moradores")
-      .update({
-        voter_title: cleanedTitle,
-        cpf: cleanedCpf,
-        name: name.trim(),
-        fiscal_responsavel: fiscalResponsavel.trim(),
-        birth_date: birthDate || null,
-        voter_zone: voterZone.trim() || null,
-        voter_section: voterSection.trim() || null,
-        email: email.trim() || null,
-        phone: phone.trim() || null,
-        cep: cep.trim() || null,
-        address: address.trim() || null,
-        observacao: observacao.trim() || null,
-        updated_at: new Date().toISOString(),
-      })
+      .update({ ...newValues, updated_at: new Date().toISOString() })
       .eq("id", id);
+
+    if (!dbError && changes.length > 0) {
+      await supabase.from("alteracoes_log").insert(changes);
+    }
     setIsSaving(false);
 
-    if (dbError) setError(dbError.message);
-    else setToastMessage("Alterações salvas!");
+    if (dbError) {
+      setError(dbError.message);
+    } else {
+      setMorador({ ...morador, ...newValues } as Morador);
+      setToastMessage("Alterações salvas!");
+      loadHistory();
+    }
   };
 
   if (loading) return <p className="text-sm text-ink/50">Carregando...</p>;
@@ -238,6 +294,43 @@ export function MoradorDetail() {
             {isSaving ? "Salvando..." : "Salvar alterações"}
           </button>
         </form>
+      </div>
+
+      <div className="rounded-lg border border-line bg-white p-5">
+        <h2 className="mb-1 text-lg font-semibold text-ink">Histórico de alterações</h2>
+        {morador.created_by_email && (
+          <p className="mb-4 text-sm text-ink/60">Cadastrado por {morador.created_by_email}</p>
+        )}
+        {history.length === 0 ? (
+          <p className="text-sm text-ink/50">Nenhuma alteração registrada.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-line text-left text-ink/60">
+                  <th className="px-3 py-2 font-medium">Data e hora</th>
+                  <th className="px-3 py-2 font-medium">Campo</th>
+                  <th className="px-3 py-2 font-medium">Valor antigo</th>
+                  <th className="px-3 py-2 font-medium">Valor novo</th>
+                  <th className="px-3 py-2 font-medium">Alterado por</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((h) => (
+                  <tr key={h.id} className="border-b border-line last:border-0">
+                    <td className="px-3 py-2 text-ink/70">
+                      {new Date(h.created_at).toLocaleString("pt-BR")}
+                    </td>
+                    <td className="px-3 py-2 font-medium text-ink">{h.campo}</td>
+                    <td className="px-3 py-2 text-ink/70">{h.valor_antigo ?? "—"}</td>
+                    <td className="px-3 py-2 text-ink/70">{h.valor_novo ?? "—"}</td>
+                    <td className="px-3 py-2 text-ink/70">{h.alterado_por_email ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
