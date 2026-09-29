@@ -125,6 +125,7 @@ function MultiSelectDropdown({
   onChange: (next: Set<string>) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -135,12 +136,20 @@ function MultiSelectDropdown({
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
+  useEffect(() => {
+    if (!open) setSearch("");
+  }, [open]);
+
   const toggle = (value: string) => {
     const next = new Set(selected);
     if (next.has(value)) next.delete(value);
     else next.add(value);
     onChange(next);
   };
+
+  const visibleOptions = options.filter((opt) =>
+    opt.toLowerCase().includes(search.trim().toLowerCase()),
+  );
 
   return (
     <div ref={ref} className="relative">
@@ -152,11 +161,23 @@ function MultiSelectDropdown({
         {selected.size === 0 ? "Todos" : `${selected.size} selecionado(s)`}
       </button>
       {open && (
-        <div className="absolute z-10 mt-1 max-h-48 w-48 overflow-y-auto rounded-md border border-line bg-white p-2 shadow-lg">
+        <div className="absolute z-10 mt-1 w-48 rounded-md border border-line bg-white p-2 shadow-lg">
+          {options.length > 5 && (
+            <input
+              autoFocus
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Pesquisar..."
+              className="mb-2 w-full rounded border border-line px-2 py-1 text-xs outline-none focus:border-teal"
+            />
+          )}
+          <div className="max-h-40 overflow-y-auto">
           {options.length === 0 ? (
             <p className="px-1 py-1 text-xs text-ink/50">Sem opções ainda</p>
+          ) : visibleOptions.length === 0 ? (
+            <p className="px-1 py-1 text-xs text-ink/50">Nenhuma opção encontrada</p>
           ) : (
-            options.map((opt) => (
+            visibleOptions.map((opt) => (
               <label
                 key={opt}
                 className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-xs hover:bg-paper"
@@ -166,6 +187,7 @@ function MultiSelectDropdown({
               </label>
             ))
           )}
+          </div>
           {selected.size > 0 && (
             <button
               type="button"
@@ -250,18 +272,30 @@ export function Moradores() {
     voterZoneFilter.size > 0 ||
     voterSectionFilter.size > 0;
 
+  const clearAllFilters = () => {
+    setTextFilters(emptyTextFilters);
+    setFiscalResponsavelFilter(new Set());
+    setVoterZoneFilter(new Set());
+    setVoterSectionFilter(new Set());
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="rounded-lg border border-line bg-white px-4 py-3">
-          <p className="text-2xl font-semibold text-ink">{rows === null ? "…" : rows.length}</p>
-          <p className="text-xs text-ink/60">Total de moradores cadastrados</p>
+          <p className="text-2xl font-semibold text-ink">{rows === null ? "…" : filtered.length}</p>
+          <p className="text-xs text-ink/60">
+            {hasActiveFilter ? `Moradores filtrados (de ${rows?.length ?? 0} no total)` : "Total de moradores cadastrados"}
+          </p>
         </div>
         <div className="flex items-center gap-3">
-          {rows !== null && hasActiveFilter && (
-            <p className="text-sm text-ink/60">
-              Mostrando {filtered.length} de {rows.length}
-            </p>
+          {hasActiveFilter && (
+            <button
+              onClick={clearAllFilters}
+              className="rounded-md border border-line px-4 py-2 text-sm font-medium text-ink/70 hover:bg-paper"
+            >
+              Limpar filtros
+            </button>
           )}
           <button
             onClick={() => downloadCsv(filtered)}
